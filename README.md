@@ -4,9 +4,45 @@ This is my submission for the Nosh full stack intern assignment. It's a small da
 
 Stack: React + Vite + Tailwind on the frontend, Node.js + Express on the backend, PostgreSQL for the database. Tests use Vitest/Supertest for the API and Playwright for the browser.
 
+## Live demo
+
+- **Dashboard:** https://nosh-gules.vercel.app
+- **API:** https://nosh-api-agf9.onrender.com (try [`/dishes`](https://nosh-api-agf9.onrender.com/dishes) or [`/health`](https://nosh-api-agf9.onrender.com/health))
+
+The frontend is on Vercel, and the API and its PostgreSQL database are on Render's free tier. The free API goes to sleep after about 15 minutes without traffic, so the first load can take up to a minute. If the dashboard says "Unable to load dishes" at first, wait a few seconds; it retries on its own every 5 seconds, or you can click Retry.
+
+The live database is shared, so anything you save there is visible to everyone who opens the link. Local setup is below if you want your own copy.
+
+## Contents
+
+- [What's done](#whats-done)
+- [Running it locally](#running-it-locally)
+- [Project structure](#project-structure)
+- [Database](#database)
+- [API](#api)
+- [How it's put together](#how-its-put-together)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Known limitations](#known-limitations)
+- [Time spent](#time-spent)
+- [AI use and reused code](#ai-use-and-reused-code)
+
+## What's done
+
+- Postgres schema with a versioned migration, and a seed command that loads the supplied JSON and can be rerun safely
+- `GET /dishes` and `PATCH /dishes/:dishId` with strict validation and optimistic concurrency (409 on a stale version)
+- Local drafts in the frontend, saved only when you click Save, with discard, conflict handling and error states
+- Loading, empty and error states, a broken-image fallback, and a layout that works on desktop and mobile
+- **Optional bonus: done.** Changes saved from another client show up automatically (polling every 5 seconds) without touching your draft
+- Backend tests against a real database, browser tests, and the app deployed on Render + Vercel
+
 ## Running it locally
 
-You'll need Node.js 20 or newer and Docker Desktop. I only use Docker to run Postgres. If you already have Postgres installed you can skip Docker and point `DATABASE_URL` at your own database.
+What you need:
+
+- Node.js 20 or newer (I used 22) and npm
+- Docker Desktop, only to run Postgres. If you already have Postgres installed you can skip Docker and point `DATABASE_URL` at your own database
+- Git
 
 Ports I picked so they don't clash with other projects:
 
@@ -37,11 +73,13 @@ npm install
 npm run dev                 # http://localhost:5729
 ```
 
+Open http://localhost:5729 and you should see the 5 dishes from the supplied JSON, all at version 1.
+
 The frontend talks to `http://localhost:4729` by default, so it doesn't need a `.env` file locally. If your backend runs somewhere else, set `VITE_API_BASE_URL` (see `frontend/.env.example`).
 
 ### Backend environment variables
 
-These are in `backend/.env.example`. The password there is just for the local Docker container, not a real secret.
+These are in `backend/.env.example`. The password there is just for the local Docker container, not a real secret. Real `.env` files are git-ignored.
 
 ```
 NODE_ENV=development
@@ -52,7 +90,18 @@ CORS_ORIGINS=http://localhost:5729
 TEST_DATABASE_URL=postgresql://nosh:nosh_local_password@localhost:54329/nosh_test
 ```
 
-`CORS_ORIGINS` is a comma separated list of frontend URLs allowed to call the API. `TEST_DATABASE_URL` is only used by the tests, and they refuse to run unless the database name ends in `_test`, because they delete data.
+- `DATABASE_URL` is the only required one.
+- `DATABASE_SSL` should be `true` when connecting to a database that requires SSL, like Render's external URL.
+- `CORS_ORIGINS` is a comma separated list of frontend URLs allowed to call the API.
+- `TEST_DATABASE_URL` is only used by the tests, and they refuse to run unless the database name ends in `_test`, because they delete data.
+
+### Frontend environment variable
+
+```
+VITE_API_BASE_URL=http://localhost:4729
+```
+
+This is the address of the backend, with no trailing slash. Vite writes it into the built code, so it's not a secret, and changing it needs a new build.
 
 ### Useful commands
 
@@ -62,6 +111,7 @@ Inside `backend/`:
 - `npm run db:seed` loads `db/seed/dishes.json` (safe to run again, more on that below)
 - `npm run db:reset -- --yes` wipes the dishes table and seeds it again. Dev only, it refuses to run in production
 - `npm run dev` starts the API and restarts it when files change
+- `npm start` starts the API without watching
 - `npm test` runs the backend tests
 
 Inside `frontend/`:
@@ -69,6 +119,48 @@ Inside `frontend/`:
 - `npm run dev` starts the dashboard
 - `npm run build` makes a production build
 - `npm run test:e2e` runs the browser tests (they start their own backend and frontend on ports 4730/5730 with a separate database)
+
+To stop Postgres: `docker compose down` (data is kept) or `docker compose down -v` (data is deleted).
+
+## Project structure
+
+```
+NOSH/
+├── docker-compose.yml        Postgres for local development and tests
+├── render.yaml               Render blueprint (optional way to create the API + database)
+├── backend/
+│   ├── db/
+│   │   ├── migrations/       001_create_dishes.sql
+│   │   ├── seed/dishes.json  the dataset supplied with the assignment
+│   │   └── docker-init/      creates nosh_test and nosh_e2e on the first Docker start
+│   ├── scripts/              migrate.js, seed.js, reset.js
+│   ├── src/
+│   │   ├── server.js         starts the server, shuts down cleanly
+│   │   ├── app.js            Express app: CORS, JSON parsing, routes, error handler
+│   │   ├── config/env.js     reads and checks environment variables
+│   │   ├── db/               connection pool, transaction helper, migration runner, seed logic
+│   │   ├── routes/           /dishes and /health
+│   │   ├── controllers/      request in, response out
+│   │   ├── services/         business rules and the update transaction
+│   │   ├── repositories/     all SQL
+│   │   ├── validators/       request validation
+│   │   ├── middleware/       error handler, 404, request logger
+│   │   └── utils/            HttpError, image URL check
+│   └── tests/                unit/ and integration/
+└── frontend/
+    ├── vercel.json           Vercel build settings
+    ├── e2e/                  Playwright browser tests
+    └── src/
+        ├── api/httpClient.js       fetch wrapper with timeouts and error parsing
+        ├── config/env.js           VITE_API_BASE_URL
+        ├── components/             shared UI (layout, modal, toast, icons)
+        ├── context/                toast notifications
+        └── features/dishes/
+            ├── api/dishesApi.js    the three API calls
+            ├── hooks/              useDishes, useDishDrafts, useDishEditor, useDishTableQuery
+            ├── components/         table, edit drawer, dialogs
+            └── pages/DishesPage.jsx
+```
 
 ## Database
 
@@ -88,7 +180,7 @@ CREATE TABLE dishes (
 
 I kept `dish_id` as `TEXT` because the IDs in the supplied JSON are strings ("1", "2", ...). Converting them to integers would work for this data but could break IDs like "007" later.
 
-Migrations are plain SQL files in `backend/db/migrations`. The migrate script records each file it runs in a `schema_migrations` table so nothing runs twice.
+Migrations are plain SQL files in `backend/db/migrations`. The migrate script records each file it runs in a `schema_migrations` table so nothing runs twice, and it never drops anything.
 
 The seed script reads the supplied JSON, checks every record (string id, string name and URL, boolean `isPublished`, no duplicate ids), and inserts each dish with version 1 using `INSERT ... ON CONFLICT (dish_id) DO NOTHING`. That means running it again won't create duplicates and won't touch dishes that already exist, so any edits and versions you've saved are kept. If you actually want to throw away edits and go back to the original data, that's what `db:reset` is for.
 
@@ -121,6 +213,7 @@ Rules the backend checks:
 - Any other field (like `imageUrl` or `version`) is rejected. The client can't change the image or set the version.
 - If the dish ends up published, the trimmed name can't be empty and the stored image URL has to be a valid http/https URL. I only check the format with `new URL()`; I don't download the image.
 - If `expectedVersion` doesn't match what's in the database, the update is refused with 409.
+- `isPublished` is saved exactly as sent. It's never toggled.
 
 On success it returns the saved dish with the version increased by 1. If anything is rejected, the row in the database stays exactly as it was.
 
@@ -138,7 +231,7 @@ Status codes I use:
 - 503 `DATABASE_UNAVAILABLE` if Postgres can't be reached
 - 500 `INTERNAL_ERROR` for anything unexpected. The real error is logged on the server, never sent to the client
 
-Some example requests (these outputs are copied from my local run):
+Some example requests (these outputs are copied from my local run). To try them against the live API, replace `http://localhost:4729` with `https://nosh-api-agf9.onrender.com`.
 
 ```bash
 curl http://localhost:4729/dishes
@@ -155,6 +248,10 @@ curl -X PATCH http://localhost:4729/dishes/2 -H "Content-Type: application/json"
 curl -X PATCH http://localhost:4729/dishes/3 -H "Content-Type: application/json" \
   -d '{"dishName":"   ","isPublished":true,"expectedVersion":1}'
 # 400 {"error":{"code":"DISH_NAME_REQUIRED",...}}
+
+curl -X PATCH http://localhost:4729/dishes/3 -H "Content-Type: application/json" \
+  -d '{"dishName":"X","isPublished":"true","expectedVersion":"1"}'
+# 400 {"error":{"code":"VALIDATION_ERROR",...,"details":[{"field":"isPublished",...},{"field":"expectedVersion",...}]}}
 
 curl -X PATCH http://localhost:4729/dishes/999 -H "Content-Type: application/json" \
   -d '{"dishName":"X","isPublished":false,"expectedVersion":1}'
@@ -251,9 +348,11 @@ npm run test:e2e
 
 If you'd rather use your installed Chrome, set `PW_CHANNEL=chrome` first (PowerShell: `$env:PW_CHANNEL="chrome"`). These cover loading, empty and error states, search and filter, broken images, the mobile layout, drafts surviving a refresh, discard, save and reload, the publish rules, failed saves with retry, the two-tab conflict, a failed reload after a conflict, and changes from another client showing up automatically.
 
+Besides the automated tests, I also checked the whole flow by hand in Chrome, both locally (including actually stopping and restarting the backend in the middle of an edit) and on the deployed site.
+
 ### Checking it by hand
 
-With the app running:
+With the app running locally:
 
 1. The dashboard shows the 5 dishes from the JSON, all at v1.
 2. Edit Paneer Tikka, change the name and click Close. The row says "Unsaved local draft". `curl http://localhost:4729/dishes/2` still shows the old name and version 1. Refresh the page and the draft is still there.
@@ -274,15 +373,49 @@ With the app running:
 9. With a draft open, stop the backend and click Save. You get "Unable to save changes", the draft is still editable, and the header says Disconnected. Start the backend again, click Retry, and it saves.
 10. With the dashboard open, change a dish with curl. The row updates within about 5 seconds. If you had a draft for that dish, it stays and you get the "newer saved version" banner.
 
-## Deploying (optional)
+Steps 1-3, 6, 8 and 10 also work on the live demo. For step 10, send the PATCH to `https://nosh-api-agf9.onrender.com`.
 
-I set it up for Render (backend and database) and Vercel (frontend), but deploying isn't required for the assignment.
+## Deployment
 
-Render: in the dashboard choose New > Blueprint and pick this repo. `render.yaml` creates the API service from `backend/` and a Postgres database. Set `CORS_ORIGINS` to the Vercel URL when it asks. On every start it runs the migrations and the seed (both are safe to repeat) and then starts the API. `/health` should return ok.
+Deploying wasn't required, but I put it online so it's easy to try. This is how it's set up.
 
-Vercel: import the repo, set the root directory to `frontend`, and add `VITE_API_BASE_URL` with the Render URL (no trailing slash). `frontend/vercel.json` has the build settings.
+**Database (Render PostgreSQL).** I created a free Postgres instance on Render in the Singapore region. To create the tables and load the data, I ran the same scripts as locally, pointed at Render's external URL:
 
-Free Render services go to sleep when idle, so the first request can take up to a minute. Free Render databases also expire after 30 days.
+```bash
+cd backend
+DATABASE_URL="<Render external database URL>" DATABASE_SSL=true npm run db:migrate
+DATABASE_URL="<Render external database URL>" DATABASE_SSL=true npm run db:seed
+```
+
+The API also runs both commands every time it starts (they're safe to repeat), so this step is just to make sure the database is ready before the first deploy.
+
+**API (Render web service).** It's a Node web service from this repo:
+
+- Branch: `master`, Root Directory: `backend`, Region: same as the database
+- Build command: `npm ci`
+- Start command: `npm run start:render` (runs migrate, then seed, then starts the server)
+- Health check path: `/health`
+- Environment variables:
+  - `NODE_ENV=production`
+  - `NODE_VERSION=22`
+  - `DATABASE_URL=<Render internal database URL>`
+  - `DATABASE_SSL=false` (the internal URL doesn't need SSL)
+  - `CORS_ORIGINS=https://nosh-gules.vercel.app,http://localhost:5729`
+
+`PORT` isn't set because Render provides it. `render.yaml` describes the same setup if you'd rather create everything with Render's Blueprint option.
+
+**Frontend (Vercel).** I imported the repo as a single Vite project with Root Directory `frontend`; `vercel.json` has the build settings. It needs one environment variable:
+
+- `VITE_API_BASE_URL=https://nosh-api-agf9.onrender.com`, added as a **Config** variable (not Secret). Vercel won't store `VITE_` variables as secrets because they end up in the browser code, and that's fine here since it's just the public API address.
+
+Two things that caught me while deploying:
+
+- `VITE_API_BASE_URL` is read at build time, so after adding or changing it you have to redeploy. Before I did that, the live site was still calling `localhost:4729`.
+- `CORS_ORIGINS` on the API has to include the exact Vercel URL (no trailing slash). Otherwise the browser blocks every request.
+
+Free tier notes: the Render web service sleeps when idle (the first request can take up to a minute), and free Render databases expire after 30 days.
+
+No real database URLs or passwords are committed. `.env` and every `.env.*` file are git-ignored; only the two `.env.example` files with local placeholder values are in the repo.
 
 ## Known limitations
 
@@ -291,6 +424,7 @@ Free Render services go to sleep when idle, so the first request can take up to 
 - The image check only looks at the URL format. A valid URL pointing to a missing image just shows the placeholder.
 - An unpublished dish can have an empty name. The table shows it as "(no name)".
 - No login, no creating or deleting dishes, no image upload, since those were out of scope.
+- The live demo uses free hosting, so the first request after a quiet period is slow.
 
 ## Time spent
 
