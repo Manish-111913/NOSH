@@ -1,0 +1,16 @@
+{
+  "name": "nosh-dish-management",
+  "private": true,
+  "description": "Shortcuts for the backend/ and frontend/ projects. No dependencies here.",
+  "scripts": {
+    "setup": "npm --prefix backend install && npm --prefix frontend install",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "db:seed": "npm --prefix backend run db:seed",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "test": "npm --prefix backend test",
+    "test:e2e": "npm --prefix frontend run test:e2e"
+  }
+}

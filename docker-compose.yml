@@ -1,0 +1,27 @@
+# Local PostgreSQL for development and tests.
+#   docker compose up -d        -> start
+#   docker compose down         -> stop (data is kept in the named volume)
+#   docker compose down -v      -> stop AND delete all data
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nosh-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nosh
+      POSTGRES_PASSWORD: nosh_local_password
+      POSTGRES_DB: nosh
+    ports:
+      - "54329:5432"
+    volumes:
+      - nosh_pgdata:/var/lib/postgresql/data
+      # Runs only when the volume is first created: adds the nosh_test and nosh_e2e databases.
+      - ./backend/db/docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nosh -d nosh"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  nosh_pgdata:
