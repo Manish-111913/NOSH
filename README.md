@@ -445,7 +445,12 @@ No real database URLs or passwords are committed. `.env` and every `.env.*` file
 
 ## Time spent
 
-Roughly TODO hours in total.
+About 4 hours in total (4 h 5 min):
+
+- Reading the assignment and docs: 30 min
+- Backend and local database setup: 2 h
+- Frontend: 1 h
+- Deployment: 35 min (database 10 min, backend 15 min, frontend 10 min)
 
 ## AI use and reused code
 
