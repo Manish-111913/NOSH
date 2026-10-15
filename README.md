@@ -307,6 +307,8 @@ Drafts are stored in `sessionStorage`, so they survive a page refresh but each b
 - If the save fails (validation error, server error, or the backend is down), the draft stays as it is and you get an error message with a Retry button for connection problems.
 - On a 409, the draft is kept and a dialog shows your draft next to the latest saved version. "Keep my draft" leaves everything alone (saving again will conflict again, nothing gets overwritten). "Reload latest version" asks you to confirm, fetches the dish, and only replaces your draft once that fetch succeeds. If the fetch fails, your draft is still there.
 
+About Discard after a conflict: when a save gets a 409, the table switches to the newer copy the server sent back, so Discard after that shows the latest saved values, not the ones you first opened. I did this on purpose. Polling would load the newer copy within 5 seconds anyway, so "the last loaded values" are always the latest saved values. Going back to the older values would show data that no longer exists on the server, and editing from there would only lead to another conflict.
+
 One thing I thought about: if a save times out, it might still have gone through on the server. I don't retry automatically. If the user clicks Retry and the first save did land, the version check turns it into a 409 that shows the saved data, instead of saving twice.
 
 ### Bonus: picking up changes from elsewhere
