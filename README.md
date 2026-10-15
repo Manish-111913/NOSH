@@ -361,14 +361,27 @@ With the app running locally:
 5. Run `npm run db:seed` again. It prints "Inserted 0, skipped 5" and the edited dish doesn't change.
 6. Clear the name while Published is selected. Save gets disabled. The backend rejects it too:
    `curl -X PATCH http://localhost:4729/dishes/3 -H "Content-Type: application/json" -d '{"dishName":"  ","isPublished":true,"expectedVersion":1}'` gives 400 and the dish doesn't change.
-7. For the image URL case, all the supplied dishes have valid URLs, so I add a test dish with a bad one, try to publish it, and remove it again:
+7. For the image URL case, none of the supplied dishes has a bad URL, so I need a test row. I add it to the `nosh_test` database (the one the automated tests use and wipe anyway), so the main `nosh` data is never touched. I start a second copy of the API on port 4731 pointed at that database (Git Bash):
    ```bash
-   docker exec nosh-postgres psql -U nosh -d nosh -c "INSERT INTO dishes (dish_id, dish_name, image_url, is_published) VALUES ('bad-url-test', 'Broken Image Dish', 'ftp://example.com/dish.jpg', false);"
-   curl -X PATCH http://localhost:4729/dishes/bad-url-test -H "Content-Type: application/json" -d '{"dishName":"Broken Image Dish","isPublished":true,"expectedVersion":1}'
-   # 400 INVALID_IMAGE_URL, the row is still unpublished at version 1
-   docker exec nosh-postgres psql -U nosh -d nosh -c "DELETE FROM dishes WHERE dish_id = 'bad-url-test';"
+   cd backend
+   export DATABASE_URL=postgresql://nosh:nosh_local_password@localhost:54329/nosh_test
+   npm run db:migrate
+   npm run db:reset -- --yes      # fresh copy of the 5 dishes, only in nosh_test
+   PORT=4731 npm start            # leave this running
    ```
-   While the test dish exists, opening it in the UI and choosing Published shows the image URL error and the row shows the broken-image placeholder.
+   (PowerShell: `$env:DATABASE_URL="postgresql://nosh:nosh_local_password@localhost:54329/nosh_test"`, then the same `npm run` commands, and `$env:PORT="4731"; npm start`.)
+
+   Then, in a second terminal:
+   ```bash
+   docker exec nosh-postgres psql -U nosh -d nosh_test -c "INSERT INTO dishes (dish_id, dish_name, image_url, is_published) VALUES ('bad-url-test', 'Broken Image Dish', 'ftp://example.com/dish.jpg', false);"
+   curl -X PATCH http://localhost:4731/dishes/bad-url-test -H "Content-Type: application/json" -d '{"dishName":"Broken Image Dish","isPublished":true,"expectedVersion":1}'
+   # 400 INVALID_IMAGE_URL
+   curl http://localhost:4731/dishes/bad-url-test
+   # still "isPublished":false and "version":1
+   ```
+   Stop the second API with Ctrl+C and close that terminal, so `DATABASE_URL` goes back to normal. When I ran this, the main `nosh` table was byte-for-byte the same before and after.
+
+   This case is also covered by the automated tests, so you don't have to do it by hand: the "publishing rules" tests in `backend/tests/integration/dishes.api.test.js` (empty, malformed, `ftp:` and no-hostname URLs, each checked to leave the row unchanged), `backend/tests/unit/imageUrl.test.js`, and the browser test "publishing a dish with an invalid image URL is blocked" in `frontend/e2e/editing.spec.js`, which checks the error message and the disabled Save button in the UI.
 8. Open the app in two tabs (type the URL in the second tab rather than duplicating the first one, since duplicating copies sessionStorage). Edit the same dish in both. Save in tab A, then save in tab B. Tab B shows the conflict dialog with its draft next to A's saved values. Tab A's change is still in the database. "Keep my draft" keeps B's text; "Reload latest version" replaces it with A's after you confirm.
 9. With a draft open, stop the backend and click Save. You get "Unable to save changes", the draft is still editable, and the header says Disconnected. Start the backend again, click Retry, and it saves.
 10. With the dashboard open, change a dish with curl. The row updates within about 5 seconds. If you had a draft for that dish, it stays and you get the "newer saved version" banner.
