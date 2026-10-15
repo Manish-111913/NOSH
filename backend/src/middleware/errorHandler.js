@@ -3,6 +3,9 @@ import { HttpError } from '../utils/httpErrors.js';
 // Error codes that mean "PostgreSQL is unreachable" rather than a bug in our code.
 const DB_UNAVAILABLE_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET', '57P01', '57P03', '08000', '08001', '08003', '08006']);
 
+// 55P03 = lock_timeout reached, 57014 = statement_timeout reached (see db/pool.js).
+const DB_BUSY_CODES = new Set(['55P03', '57014']);
+
 function isDatabaseUnavailable(err) {
   return DB_UNAVAILABLE_CODES.has(err.code) || /timeout exceeded when trying to connect|Connection terminated/i.test(err.message ?? '');
 }
@@ -24,6 +27,10 @@ export function errorHandler(err, req, res, next) {
   }
   if (err.type === 'entity.too.large') {
     return sendError(res, 413, 'PAYLOAD_TOO_LARGE', 'Request body is too large.');
+  }
+  if (DB_BUSY_CODES.has(err.code)) {
+    console.error(`[error] ${req.method} ${req.originalUrl} - database timeout: ${err.message}`);
+    return sendError(res, 503, 'DATABASE_BUSY', 'The database is busy right now. Your changes were not saved; please try again.');
   }
   if (isDatabaseUnavailable(err)) {
     console.error(`[error] ${req.method} ${req.originalUrl} - database unavailable: ${err.message}`);

@@ -4,7 +4,9 @@ import { dishesApi } from '../api/dishesApi.js';
 import { POLL_INTERVAL_MS } from '../constants.js';
 
 // Failures that mean "server unreachable", as opposed to the server answering with an error.
-const isConnectionFailure = (err) => err.status === 0 || err.status === 502 || err.status === 503 || err.status === 504;
+// DATABASE_BUSY (a timeout) is a 503 too, but the server is reachable, so it doesn't count.
+const isConnectionFailure = (err) =>
+  err.status === 0 || ((err.status === 502 || err.status === 503 || err.status === 504) && err.code !== 'DATABASE_BUSY');
 
 /**
  * Saved dish records from the backend (never drafts).

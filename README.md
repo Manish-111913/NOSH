@@ -230,7 +230,7 @@ Status codes I use:
 - 400 `VALIDATION_ERROR` for missing or wrong-typed fields (with a `details` list), `INVALID_JSON`, `INVALID_DISH_ID`, `DISH_NAME_REQUIRED`, `INVALID_IMAGE_URL`
 - 404 `DISH_NOT_FOUND` for an unknown dish, `ROUTE_NOT_FOUND` for an unknown URL
 - 409 `VERSION_CONFLICT` when the version is stale. The response also includes `currentDish`, the latest saved version, so the frontend can show what changed
-- 503 `DATABASE_UNAVAILABLE` if Postgres can't be reached
+- 503 `DATABASE_UNAVAILABLE` if Postgres can't be reached, `DATABASE_BUSY` if a save waited too long for a lock (see below)
 - 500 `INTERNAL_ERROR` for anything unexpected. The real error is logged on the server, never sent to the client
 
 Some example requests (these outputs are copied from my local run). To try them against the live API, replace `http://localhost:4729` with `https://nosh-api-agf9.onrender.com`.
@@ -297,6 +297,14 @@ Without the lock, two requests could both read version 1, both pass the check, a
 
 I could have used a single `UPDATE ... WHERE version = $n` instead. I went with the lock because then I can return a clear 404, 409 or 400 and include the latest row in the 409 response without a separate query that might race with another update.
 
+What if a transaction hangs while holding the lock? Normally it can't hold it for long, since it's just a few quick queries and any error rolls it back. But if the app froze in the middle, other saves for that same dish would wait. Other dishes aren't affected. So the connection pool sets three Postgres timeouts (`backend/src/db/pool.js`):
+
+- `lock_timeout` 5 s: a save waiting for someone else's lock gives up and returns 503 `DATABASE_BUSY` instead of waiting forever. The frontend shows the error with Retry and keeps the draft.
+- `idle_in_transaction_session_timeout` 10 s: if a transaction is left open, Postgres ends that session and the lock is released.
+- `statement_timeout` 10 s: no single query can run longer than that.
+
+`backend/tests/integration/timeouts.test.js` covers both cases: a save blocked by a locked row fails fast with nothing changed, and a "hung" transaction is ended by Postgres so the next save goes through. I checked that the first test fails when the lock timeout is turned off.
+
 ### How drafts work in the frontend
 
 When you edit a dish, the change goes into a draft object `{ dishName, isPublished, baseVersion }`, kept separately from the saved data. `baseVersion` is the version the dish had when you started editing, and that's what gets sent as `expectedVersion` when you save. The frontend never increases the version itself; it just uses what the server sends back.
@@ -330,7 +338,7 @@ cd backend
 npm test
 ```
 
-79 tests, all passing on my machine. They cover:
+82 tests, all passing on my machine. They cover:
 
 - validation (wrong types, missing fields, extra fields, bad versions, bad ids)
 - the image URL rules (empty, malformed, ftp, no hostname), plus a check that a well-formed URL to a host that doesn't exist is still accepted, which shows I'm not downloading images
@@ -341,6 +349,7 @@ npm test
 - seeding: version 1 on insert, and re-seeding after an edit doesn't duplicate or overwrite anything
 - data still there after the app and its connection pool are recreated
 - 503 when the database is down, and CORS only allowing the configured origin
+- the database timeouts: a save stuck behind a locked row fails fast, and a hung transaction gets its lock released
 
 Browser tests (17, also passing):
 
