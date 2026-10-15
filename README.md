@@ -36,6 +36,8 @@ The live database is shared, so anything you save there is visible to everyone w
 - **Optional bonus: done.** Changes saved from another client show up automatically (polling every 5 seconds) without touching your draft
 - Backend tests against a real database, browser tests, and the app deployed on Render + Vercel
 
+Extras, not part of the required scope: search by name or ID, the status filter, column sorting and pagination in the table (all done in the browser on the loaded list), plus `GET /health`. None of the core requirements depend on them. `GET /dishes/:dishId` wasn't required either, but the conflict dialog's "Reload latest version" uses it.
+
 ## Running it locally
 
 What you need:
