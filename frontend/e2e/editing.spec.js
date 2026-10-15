@@ -125,3 +125,21 @@ test('an unknown dish (404) on save shows the not-found state', async ({ page })
 
   await expect(drawer(page).getByRole('heading', { name: 'This dish could not be found' })).toBeVisible();
 });
+
+test('Escape closes the discard dialog first, then the editor, and keeps the draft', async ({ page }) => {
+  await openDashboard(page);
+  await openEditor(page, '1');
+  await nameInput(page).fill('Jeera Rice Draft');
+
+  await drawer(page).getByRole('button', { name: 'Discard' }).click();
+  const discardDialog = page.getByRole('dialog').filter({ hasText: 'Discard unsaved changes?' });
+  await expect(discardDialog).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(discardDialog).toBeHidden();
+  await expect(drawer(page)).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(drawer(page)).toBeHidden();
+  await expect(row(page, '1')).toContainText('Unsaved local draft');
+});

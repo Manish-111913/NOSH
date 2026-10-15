@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/context/ToastContext.jsx';
 import { useDishDrafts } from './useDishDrafts.js';
 
@@ -33,6 +33,18 @@ export function useDishEditor({ dishes, saveDish, fetchDish, replaceDish }) {
   // The version this editing session started from. Sent as expectedVersion; never bumped on the client.
   const expectedVersion = draft?.baseVersion ?? dish?.version;
   const hasNewerSavedVersion = Boolean(draft && dish && draft.baseVersion < dish.version);
+
+  // Escape closes the top-most layer: discard dialog, then conflict dialog, then the drawer (the draft is kept).
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.key !== 'Escape') return;
+      if (discardOpen) setDiscardOpen(false);
+      else if (conflict.open && !conflict.isReloading) setConflict((c) => ({ ...c, open: false, confirmingReload: false, reloadError: null }));
+      else if (drawer.open && !conflict.open) setDrawer((d) => ({ ...d, open: false }));
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [discardOpen, conflict.open, conflict.isReloading, drawer.open]);
 
   // ---- Drawer ----
   function openDrawer(dishId) {

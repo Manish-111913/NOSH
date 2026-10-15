@@ -351,7 +351,7 @@ npm test
 - 503 when the database is down, and CORS only allowing the configured origin
 - the database timeouts: a save stuck behind a locked row fails fast, and a hung transaction gets its lock released
 
-Browser tests (17, also passing):
+Browser tests (18, also passing):
 
 ```bash
 cd frontend
@@ -359,7 +359,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-If you'd rather use your installed Chrome, set `PW_CHANNEL=chrome` first (PowerShell: `$env:PW_CHANNEL="chrome"`). These cover loading, empty and error states, search and filter, broken images, the mobile layout, drafts surviving a refresh, discard, save and reload, the publish rules, failed saves with retry, the two-tab conflict, a failed reload after a conflict, and changes from another client showing up automatically.
+If you'd rather use your installed Chrome, set `PW_CHANNEL=chrome` first (PowerShell: `$env:PW_CHANNEL="chrome"`). These cover loading, empty and error states, search and filter, broken images, the mobile layout, drafts surviving a refresh, discard, save and reload, the publish rules, failed saves with retry, the two-tab conflict, a failed reload after a conflict, changes from another client showing up automatically, and closing dialogs and the editor with Escape (the draft is kept).
 
 Besides the automated tests, I also checked the whole flow by hand in Chrome, both locally (including actually stopping and restarting the backend in the middle of an edit) and on the deployed site.
 
