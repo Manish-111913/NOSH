@@ -196,6 +196,14 @@ describe('PATCH /dishes/:dishId — version conflict', () => {
   });
 });
 
+describe('GET /', () => {
+  it('lists the available endpoints', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(200);
+    expect(res.body.endpoints).toContain('PATCH /dishes/:dishId');
+  });
+});
+
 describe('Unknown routes', () => {
   it('returns a JSON 404', async () => {
     const res = await request(app).get('/nope');

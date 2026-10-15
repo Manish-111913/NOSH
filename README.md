@@ -36,7 +36,7 @@ The live database is shared, so anything you save there is visible to everyone w
 - **Optional bonus: done.** Changes saved from another client show up automatically (polling every 5 seconds) without touching your draft
 - Backend tests against a real database, browser tests, and the app deployed on Render + Vercel
 
-Extras, not part of the required scope: search by name or ID, the status filter, column sorting and pagination in the table (all done in the browser on the loaded list), plus `GET /health`. None of the core requirements depend on them. `GET /dishes/:dishId` wasn't required either, but the conflict dialog's "Reload latest version" uses it.
+Extras, not part of the required scope: search by name or ID, the status filter, column sorting and pagination in the table (all done in the browser on the loaded list), plus `GET /health` and the `GET /` index. None of the core requirements depend on them. `GET /dishes/:dishId` wasn't required either, but the conflict dialog's "Reload latest version" uses it.
 
 ## Running it locally
 
@@ -200,6 +200,7 @@ Endpoints:
 - `GET /dishes/:dishId` returns one dish. The frontend uses this when you reload after a conflict
 - `PATCH /dishes/:dishId` updates the name and published status
 - `GET /health` returns 200 if the database is reachable, 503 if not
+- `GET /` lists these endpoints, so opening the API URL in a browser shows something useful
 
 The PATCH body needs exactly these three fields:
 
@@ -338,7 +339,7 @@ cd backend
 npm test
 ```
 
-82 tests, all passing on my machine. They cover:
+83 tests, all passing on my machine. They cover:
 
 - validation (wrong types, missing fields, extra fields, bad versions, bad ids)
 - the image URL rules (empty, malformed, ftp, no hostname), plus a check that a well-formed URL to a host that doesn't exist is still accepted, which shows I'm not downloading images

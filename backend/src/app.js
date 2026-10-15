@@ -19,6 +19,13 @@ export function createApp({ pool, corsOrigins = [], logRequests = false }) {
   app.use(cors({ origin: corsOrigins, methods: ['GET', 'PATCH'], allowedHeaders: ['Content-Type'] }));
   app.use(express.json({ limit: '10kb' }));
 
+  // Small index so opening the API's base URL in a browser shows what's available.
+  app.get('/', (req, res) => {
+    res.json({
+      name: 'Nosh Dish API',
+      endpoints: ['GET /dishes', 'GET /dishes/:dishId', 'PATCH /dishes/:dishId', 'GET /health'],
+    });
+  });
   app.use('/health', createHealthRouter(pool));
   app.use('/dishes', createDishesRouter(pool));
 
