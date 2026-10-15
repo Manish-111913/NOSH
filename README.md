@@ -1,5 +1,7 @@
 # Nosh Dish Dashboard
 
+[![CI](https://github.com/Manish-111913/NOSH/actions/workflows/ci.yml/badge.svg)](https://github.com/Manish-111913/NOSH/actions/workflows/ci.yml)
+
 This is my submission for the Nosh full stack intern assignment. It's a small dashboard for managing dishes. You can rename a dish or change whether it's published, but nothing is written to the database until you press Save. Every dish has a version number, and the backend uses it to make sure two people editing the same dish can't overwrite each other without knowing.
 
 Stack: React + Vite + Tailwind on the frontend, Node.js + Express on the backend, PostgreSQL for the database. Tests use Vitest/Supertest for the API and Playwright for the browser.
@@ -130,6 +132,7 @@ To stop Postgres: `docker compose down` (data is kept) or `docker compose down -
 NOSH/
 ├── docker-compose.yml        Postgres for local development and tests
 ├── render.yaml               Render blueprint (optional way to create the API + database)
+├── .github/workflows/ci.yml  CI: backend tests + frontend build on every push
 ├── backend/
 │   ├── db/
 │   │   ├── migrations/       001_create_dishes.sql
@@ -361,6 +364,8 @@ npm run test:e2e
 ```
 
 If you'd rather use your installed Chrome, set `PW_CHANNEL=chrome` first (PowerShell: `$env:PW_CHANNEL="chrome"`). These cover loading, empty and error states, search and filter, broken images, the mobile layout, drafts surviving a refresh, discard, save and reload, the publish rules, failed saves with retry, the two-tab conflict, a failed reload after a conflict, changes from another client showing up automatically, and closing dialogs and the editor with Escape (the draft is kept).
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the backend tests against a fresh Postgres and builds the frontend on every push. The browser tests aren't in CI; I run them locally.
 
 Besides the automated tests, I also checked the whole flow by hand in Chrome, both locally (including actually stopping and restarting the backend in the middle of an edit) and on the deployed site.
 
